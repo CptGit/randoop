@@ -540,6 +540,50 @@ public class GenTests extends GenInputsAbstract {
 
     JavaFileWriter javaFileWriter = new JavaFileWriter(junit_output_dir);
 
+    /* HACK starts */
+    // Collect sequences and corresponding types
+    Map<String, List<List<String>>> seqsOfType = new HashMap<>();
+    List<ExecutableSequence> allExecutableSequences =
+        new ArrayList<>(explorer.getErrorTestSequences());
+    allExecutableSequences.addAll(explorer.getRegressionSequences());
+    for (ExecutableSequence es : allExecutableSequences) {
+      if (!es.isNormalExecution()) {
+        continue;
+      }
+      String type = es.sequence.getLastVariable().getType().getBinaryName();
+      List<String> codeLines = es.toCodeLines();
+      List<List<String>> seqs = seqsOfType.getOrDefault(type, new ArrayList<>());
+      seqs.add(codeLines);
+      seqsOfType.putIfAbsent(type, seqs);
+    }
+    System.out.println("how many? " + seqsOfType.size());
+    // Output as a yaml file
+    com.amihaiemil.eoyaml.YamlMappingBuilder builder =
+        com.amihaiemil.eoyaml.Yaml.createYamlMappingBuilder();
+    for (Map.Entry<String, List<List<String>>> e : seqsOfType.entrySet()) {
+      com.amihaiemil.eoyaml.YamlSequenceBuilder seqBuilder =
+          com.amihaiemil.eoyaml.Yaml.createYamlSequenceBuilder();
+      for (List<String> codeLines : e.getValue()) {
+        com.amihaiemil.eoyaml.YamlScalarBuilder scalarBuidler =
+            com.amihaiemil.eoyaml.Yaml.createYamlScalarBuilder();
+        for (String line : codeLines) {
+          scalarBuidler = scalarBuidler.addLine(line);
+        }
+        seqBuilder = seqBuilder.add(scalarBuidler.buildLiteralBlockScalar());
+      }
+      builder = builder.add(e.getKey(), seqBuilder.build());
+    }
+    com.amihaiemil.eoyaml.YamlMapping ym = builder.build();
+    try (java.io.BufferedWriter bw =
+        Files.newBufferedWriter(
+            Paths.get("inputs.yml"), java.nio.charset.StandardCharsets.UTF_8); ) {
+      com.amihaiemil.eoyaml.YamlPrinter printer = com.amihaiemil.eoyaml.Yaml.createYamlPrinter(bw);
+      printer.print(ym);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+    /* HACK ends */
+
     if (!GenInputsAbstract.no_error_revealing_tests) {
       CodeWriter codeWriter = javaFileWriter;
       if (GenInputsAbstract.minimize_error_test || GenInputsAbstract.stop_on_error_test) {

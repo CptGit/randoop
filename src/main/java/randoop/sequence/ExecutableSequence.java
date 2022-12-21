@@ -153,7 +153,7 @@ public class ExecutableSequence {
    *
    * @return the sequence as a string
    */
-  public List<String> toCodeLines() {
+  private List<String> toCodeLines() {
     List<String> lines = new ArrayList<>();
     for (int i = 0; i < sequence.size(); i++) {
 

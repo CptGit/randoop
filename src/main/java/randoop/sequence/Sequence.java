@@ -306,6 +306,14 @@ public final class Sequence {
   @SideEffectFree
   public String toCodeString() {
     StringBuilder b = new StringBuilder();
+    for (String line : toCodeLines()) {
+      b.append(line).append(Globals.lineSep);
+    }
+    return b.toString();
+  }
+
+  public List<String> toCodeLines() {
+    List<String> lines = new ArrayList<>();
     for (int i = 0; i < size(); i++) {
       // Don't dump primitive initializations, if using literals.
       // But do print them if they are the last statement;
@@ -315,10 +323,11 @@ public final class Sequence {
           continue;
         }
       }
+      StringBuilder b = new StringBuilder();
       appendCode(b, i);
-      b.append(Globals.lineSep);
+      lines.add(b.toString());
     }
-    return b.toString();
+    return lines;
   }
 
   /**

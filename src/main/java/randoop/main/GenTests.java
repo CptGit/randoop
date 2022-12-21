@@ -547,11 +547,11 @@ public class GenTests extends GenInputsAbstract {
         new ArrayList<>(explorer.getErrorTestSequences());
     allExecutableSequences.addAll(explorer.getRegressionSequences());
     for (ExecutableSequence es : allExecutableSequences) {
-      if (!es.isNormalExecution()) {
+      if (!es.isNormalExecution() || es.sequence.getLastVariable().getType().isVoid()) {
         continue;
       }
       String type = es.sequence.getLastVariable().getType().getBinaryName();
-      List<String> codeLines = es.toCodeLines();
+      List<String> codeLines = es.sequence.toCodeLines();
       List<List<String>> seqs = seqsOfType.getOrDefault(type, new ArrayList<>());
       seqs.add(codeLines);
       seqsOfType.putIfAbsent(type, seqs);

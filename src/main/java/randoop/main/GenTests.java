@@ -47,6 +47,7 @@ import org.snakeyaml.engine.v2.api.Dump;
 import org.snakeyaml.engine.v2.api.DumpSettings;
 import org.snakeyaml.engine.v2.api.StreamDataWriter;
 import org.snakeyaml.engine.v2.api.YamlOutputStreamWriter;
+import org.snakeyaml.engine.v2.common.FlowStyle;
 import randoop.ExecutionVisitor;
 import randoop.Globals;
 import randoop.MethodReplacements;
@@ -566,7 +567,8 @@ public class GenTests extends GenInputsAbstract {
     }
     System.out.println("how many? " + seqsOfType.size());
     // Output as a yaml file
-    DumpSettings settings = DumpSettings.builder().build();
+    DumpSettings settings =
+        DumpSettings.builder().setDefaultFlowStyle(FlowStyle.BLOCK).setSplitLines(false).build();
     Dump dump = new Dump(settings);
     try (FileOutputStream fs = new FileOutputStream("inputs.yml"); ) {
       StreamDataWriter writer =

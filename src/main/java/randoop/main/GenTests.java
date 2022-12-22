@@ -6,11 +6,13 @@ import com.github.javaparser.ParseException;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.stmt.BlockStmt;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
@@ -41,6 +43,10 @@ import org.plumelib.util.CollectionsPlume;
 import org.plumelib.util.EntryReader;
 import org.plumelib.util.StringsPlume;
 import org.plumelib.util.UtilPlume;
+import org.snakeyaml.engine.v2.api.Dump;
+import org.snakeyaml.engine.v2.api.DumpSettings;
+import org.snakeyaml.engine.v2.api.StreamDataWriter;
+import org.snakeyaml.engine.v2.api.YamlOutputStreamWriter;
 import randoop.ExecutionVisitor;
 import randoop.Globals;
 import randoop.MethodReplacements;
@@ -550,35 +556,27 @@ public class GenTests extends GenInputsAbstract {
       if (!es.isNormalExecution() || es.sequence.getLastVariable().getType().isVoid()) {
         continue;
       }
-      String type = es.sequence.getLastVariable().getType().getBinaryName();
+      String type = es.sequence.getLastVariable().getType().getFqName();
       List<String> codeLines = es.sequence.toCodeLines();
+      // add a line of return statement
+      codeLines.add("return " + es.sequence.getLastVariable().getName() + ";");
       List<List<String>> seqs = seqsOfType.getOrDefault(type, new ArrayList<>());
       seqs.add(codeLines);
       seqsOfType.putIfAbsent(type, seqs);
     }
     System.out.println("how many? " + seqsOfType.size());
     // Output as a yaml file
-    com.amihaiemil.eoyaml.YamlMappingBuilder builder =
-        com.amihaiemil.eoyaml.Yaml.createYamlMappingBuilder();
-    for (Map.Entry<String, List<List<String>>> e : seqsOfType.entrySet()) {
-      com.amihaiemil.eoyaml.YamlSequenceBuilder seqBuilder =
-          com.amihaiemil.eoyaml.Yaml.createYamlSequenceBuilder();
-      for (List<String> codeLines : e.getValue()) {
-        com.amihaiemil.eoyaml.YamlScalarBuilder scalarBuidler =
-            com.amihaiemil.eoyaml.Yaml.createYamlScalarBuilder();
-        for (String line : codeLines) {
-          scalarBuidler = scalarBuidler.addLine(line);
-        }
-        seqBuilder = seqBuilder.add(scalarBuidler.buildLiteralBlockScalar());
-      }
-      builder = builder.add(e.getKey(), seqBuilder.build());
-    }
-    com.amihaiemil.eoyaml.YamlMapping ym = builder.build();
-    try (java.io.BufferedWriter bw =
-        Files.newBufferedWriter(
-            Paths.get("inputs.yml"), java.nio.charset.StandardCharsets.UTF_8); ) {
-      com.amihaiemil.eoyaml.YamlPrinter printer = com.amihaiemil.eoyaml.Yaml.createYamlPrinter(bw);
-      printer.print(ym);
+    DumpSettings settings = DumpSettings.builder().build();
+    Dump dump = new Dump(settings);
+    try (FileOutputStream fs = new FileOutputStream("inputs.yml"); ) {
+      StreamDataWriter writer =
+          new YamlOutputStreamWriter(fs, StandardCharsets.UTF_8) {
+            @Override
+            public void processIOException(IOException e) {
+              throw new RuntimeException(e);
+            }
+          };
+      dump.dump(seqsOfType, writer);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }

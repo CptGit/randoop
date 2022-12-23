@@ -10,6 +10,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
+import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
@@ -35,6 +36,7 @@ import java.util.StringTokenizer;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
+import java.util.stream.Collectors;
 import org.checkerframework.checker.signature.qual.ClassGetName;
 import org.checkerframework.checker.signature.qual.Identifier;
 import org.plumelib.options.Options;
@@ -62,6 +64,7 @@ import randoop.generation.RandoopListenerManager;
 import randoop.generation.SeedSequences;
 import randoop.generation.TestUtils;
 import randoop.instrument.CoveredClassVisitor;
+import randoop.operation.MethodCall;
 import randoop.operation.Operation;
 import randoop.operation.OperationParseException;
 import randoop.operation.TypedClassOperation;
@@ -87,6 +90,7 @@ import randoop.sequence.Sequence;
 import randoop.sequence.SequenceExceptionError;
 import randoop.sequence.SequenceExecutionException;
 import randoop.sequence.Statement;
+import randoop.sequence.Variable;
 import randoop.test.CompilableTestPredicate;
 import randoop.test.ContractCheckingGenerator;
 import randoop.test.ContractSet;
@@ -548,24 +552,45 @@ public class GenTests extends GenInputsAbstract {
     JavaFileWriter javaFileWriter = new JavaFileWriter(junit_output_dir);
 
     /* HACK starts */
-    // Collect sequences and corresponding types
-    Map<String, List<List<String>>> seqsOfType = new HashMap<>();
+    // Collect sequences and corresponding last method calls.
+    List<Map<String, Object>> data = new ArrayList<>();
     List<ExecutableSequence> allExecutableSequences =
         new ArrayList<>(explorer.getErrorTestSequences());
     allExecutableSequences.addAll(explorer.getRegressionSequences());
     for (ExecutableSequence es : allExecutableSequences) {
-      if (!es.isNormalExecution() || es.sequence.getLastVariable().getType().isVoid()) {
+      if (!es.isNormalExecution()
+          || !es.sequence.getOperation().isMethodCall()
+          // TODO: remove this condition when jattack supports instance entry method.
+          || !es.sequence.getOperation().isStatic()) {
         continue;
       }
-      String type = es.sequence.getLastVariable().getType().getFqName();
+
+      SimpleList<Statement> stmts = es.sequence.statements;
+      Statement lastStmt = stmts.get(stmts.size() - 1);
+      Method lastMethod = ((MethodCall) lastStmt.getOperation().getOperation()).getMethod();
+      Map<String, Object> dataForSingleSeq = new HashMap<>();
+      String clazz = lastMethod.getDeclaringClass().getTypeName();
+      StringJoiner sj = new StringJoiner(",", lastMethod.getName() + "(", ")");
+      for (Class<?> parameterType : lastMethod.getParameterTypes()) {
+        sj.add(parameterType.getTypeName());
+      }
+      String method = sj.toString();
+      dataForSingleSeq.put("class", clazz);
+      dataForSingleSeq.put("method", method);
+
       List<String> codeLines = es.sequence.toCodeLines();
-      // add a line of return statement
-      codeLines.add("return " + es.sequence.getLastVariable().getName() + ";");
-      List<List<String>> seqs = seqsOfType.getOrDefault(type, new ArrayList<>());
-      seqs.add(codeLines);
-      seqsOfType.putIfAbsent(type, seqs);
+      List<Variable> inputVariables = es.sequence.getInputs(stmts.size() - 1);
+      String varNames =
+          inputVariables.stream()
+              .map(v -> lastStmt.getOperation().getOperation().getArgumentString(v))
+              .collect(Collectors.joining(","));
+      // replace last statement with a return statement
+      codeLines.set(codeLines.size() - 1, "return new Object[]{" + varNames + "};");
+      dataForSingleSeq.put("code", codeLines);
+
+      data.add(dataForSingleSeq);
     }
-    System.out.println("how many? " + seqsOfType.size());
+    System.out.println("how many? " + data.size());
     // Output as a yaml file
     DumpSettings settings =
         DumpSettings.builder().setDefaultFlowStyle(FlowStyle.BLOCK).setSplitLines(false).build();
@@ -578,7 +603,7 @@ public class GenTests extends GenInputsAbstract {
               throw new RuntimeException(e);
             }
           };
-      dump.dump(seqsOfType, writer);
+      dump.dump(data, writer);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }

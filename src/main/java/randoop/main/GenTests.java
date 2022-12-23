@@ -558,17 +558,17 @@ public class GenTests extends GenInputsAbstract {
         new ArrayList<>(explorer.getErrorTestSequences());
     allExecutableSequences.addAll(explorer.getRegressionSequences());
     for (ExecutableSequence es : allExecutableSequences) {
-      if (!es.isNormalExecution()
-          || !es.sequence.getOperation().isMethodCall()
-          // TODO: remove this condition when jattack supports instance entry method.
-          || !es.sequence.getOperation().isStatic()) {
+      if (!es.isNormalExecution() || !es.sequence.getOperation().isMethodCall()) {
         continue;
       }
+
+      Map<String, Object> dataForSingleSeq = new HashMap<>();
+
+      dataForSingleSeq.put("static", es.sequence.getOperation().isStatic());
 
       SimpleList<Statement> stmts = es.sequence.statements;
       Statement lastStmt = stmts.get(stmts.size() - 1);
       Method lastMethod = ((MethodCall) lastStmt.getOperation().getOperation()).getMethod();
-      Map<String, Object> dataForSingleSeq = new HashMap<>();
       String clazz = lastMethod.getDeclaringClass().getTypeName();
       StringJoiner sj = new StringJoiner(",", lastMethod.getName() + "(", ")");
       for (Class<?> parameterType : lastMethod.getParameterTypes()) {

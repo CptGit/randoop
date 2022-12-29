@@ -36,7 +36,6 @@ import java.util.StringTokenizer;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
-import java.util.stream.Collectors;
 import org.checkerframework.checker.signature.qual.ClassGetName;
 import org.checkerframework.checker.signature.qual.Identifier;
 import org.plumelib.options.Options;
@@ -580,12 +579,11 @@ public class GenTests extends GenInputsAbstract {
 
       List<String> codeLines = es.sequence.toCodeLines();
       List<Variable> inputVariables = es.sequence.getInputs(stmts.size() - 1);
-      String varNames =
-          inputVariables.stream()
-              .map(v -> lastStmt.getOperation().getOperation().getArgumentString(v))
-              .collect(Collectors.joining(","));
+      StringBuilder sb = new StringBuilder();
+      lastStmt.getOperation().appendCode(inputVariables, sb);
+      String argsList = sb.substring(sb.indexOf("(") + 1, sb.lastIndexOf(")"));
       // replace last statement with a return statement
-      codeLines.set(codeLines.size() - 1, "return new Object[]{" + varNames + "};");
+      codeLines.set(codeLines.size() - 1, "return new Object[]{" + argsList + "};");
       dataForSingleSeq.put("code", codeLines);
 
       data.add(dataForSingleSeq);
